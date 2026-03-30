@@ -1,0 +1,67 @@
+/* TransactionItem.css */
+
+.transaction-item {
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background-color 0.15s ease;
+}
+
+.transaction-item:hover {
+  background-color: #f8fafc;
+}
+
+.transaction-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.transaction-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Icon background color classes */
+.icon-bg-blue    { background-color: #dbeafe; }
+.icon-bg-orange  { background-color: #ffedd5; }
+.icon-bg-emerald { background-color: #d1fae5; }
+
+/* Icon foreground color classes */
+.icon-text-blue    { color: #2563eb; }
+.icon-text-orange  { color: #ea580c; }
+.icon-text-emerald { color: #059669; }
+
+.transaction-category {
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: #1e293b;
+}
+
+.transaction-description {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.transaction-right {
+  text-align: right;
+}
+
+.transaction-amount {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.transaction-amount--debit  { color: #1e293b; }
+.transaction-amount--credit { color: #059669; }
+
+.transaction-time {
+  font-size: 10px;
+  color: #94a3b8;
+}

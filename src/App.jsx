@@ -1,5 +1,6 @@
 import './App.css';
 import { useState, useEffect } from 'react';
+import html2canvas from 'html2canvas';
 import Onboarding from './components/Onboarding';
 import { defaultCategories } from './data/categories';
 import { Home, Smile, DollarSign, Plus } from 'lucide-react';
@@ -147,10 +148,40 @@ function App() {
     }
   };
 
+  const handleMonthlyReset = async () => {
+    if (!window.confirm('Take a screenshot and reset all data for the new month?')) return;
+
+    // 1. Screenshot the full page
+    const canvas = await html2canvas(document.body, { useCORS: true });
+    const link = document.createElement('a');
+    const month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+    link.download = `finance-ledger-${month}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+
+    // 2. Delete all transactions for this user's categories
+    const categoryIds = categories.map(c => c.id);
+    if (categoryIds.length > 0) {
+      await supabase.from('transactions').delete().in('category_id', categoryIds);
+    }
+
+    // 3. Reset each category balance back to its limit
+    await Promise.all(
+      categories.map(c =>
+        supabase.from('categories').update({ balance: c.limit }).eq('id', c.id)
+      )
+    );
+
+    // 4. Update local state
+    setTransactions([]);
+    setCategories(prev => prev.map(c => ({ ...c, balance: c.limit })));
+    setTotalBalance(monthlySalary);
+  };
+
   return (
     <div className="app">
       {showOnboarding && <Onboarding onDismiss={dismissOnboarding} />}
-      <Header />
+      <Header onReset={handleMonthlyReset} />
 
       <main className="app-main">
         <BalanceCard balance={totalBalance} salary={monthlySalary} spent={totalSpent} onBalanceChange={setTotalBalance} onSalaryChange={handleSalaryChange} />

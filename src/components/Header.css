@@ -39,6 +39,25 @@
   margin-top: 0.25rem;
 }
 
+.header-reset-btn {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.2s, background 0.2s;
+}
+
+.header-reset-btn:hover {
+  color: #0f172a;
+  background: rgba(0, 0, 0, 0.05);
+}
+
 @media (max-width: 640px) {
   .header {
     padding: 1.5rem 1rem 0.75rem;

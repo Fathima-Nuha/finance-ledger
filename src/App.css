@@ -74,6 +74,39 @@
   background: #dc2626;
 }
 
+.auto-reset-setting {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0 1rem;
+  background: #f1f5f9;
+  border-radius: 0.75rem;
+}
+
+.auto-reset-label {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.auto-reset-input {
+  width: 3rem;
+  text-align: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+  background: #fff;
+  outline: none;
+}
+
+.auto-reset-input:focus {
+  border-color: #6366f1;
+}
+
 .app-main {
   padding: 0 1.5rem;
   margin-top: 1.5rem;

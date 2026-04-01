@@ -1,5 +1,5 @@
 import './App.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import Onboarding from './components/Onboarding';
 import { defaultCategories } from './data/categories';
@@ -52,6 +52,7 @@ function App() {
   const [monthlySalary, setMonthlySalary] = useState(0);
   const [totalBalance, setTotalBalance] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
+  const autoResetFired = useRef(false);
 
   const totalSpent = categories.reduce((acc, cat) => acc + (cat.limit - cat.balance), 0);
 
@@ -91,6 +92,22 @@ function App() {
     }
     loadData();
   }, []);
+
+  // Auto-reset: fires on the last day of every month at 23:59
+  useEffect(() => {
+    if (autoResetFired.current || categories.length === 0) return;
+    const today = new Date();
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const isLastDay = today.getDate() === lastDayOfMonth;
+    const isAfter2359 = today.getHours() === 23 && today.getMinutes() >= 59;
+    const currentMonth = `${today.getFullYear()}-${today.getMonth() + 1}`;
+    const lastReset = localStorage.getItem('fl_last_auto_reset');
+    if (isLastDay && isAfter2359 && lastReset !== currentMonth) {
+      autoResetFired.current = true;
+      handleMonthlyReset();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories]);
 
   const dismissOnboarding = () => {
     localStorage.setItem('fl_seen', '1');
@@ -186,6 +203,10 @@ function App() {
 
   const confirmReset = async () => {
     setShowResetModal(false);
+
+    // Save this month so auto-reset doesn't fire again
+    const today = new Date();
+    localStorage.setItem('fl_last_auto_reset', `${today.getFullYear()}-${today.getMonth() + 1}`);
 
     // Delete all transactions for this user's categories
     const categoryIds = categories.map(c => c.id);

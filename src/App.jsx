@@ -30,12 +30,28 @@ function getRelativeDate(createdAt) {
   return txDate.toLocaleDateString();
 }
 
+function ResetConfirmModal({ onConfirm, onCancel }) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box">
+        <h3 className="modal-title">Clear this month's data?</h3>
+        <p className="modal-body">Your screenshot has been saved. This will delete all transactions and reset category balances.</p>
+        <div className="modal-actions">
+          <button className="modal-btn modal-btn-cancel" onClick={onCancel}>Cancel</button>
+          <button className="modal-btn modal-btn-ok" onClick={onConfirm}>OK</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [categories, setCategories] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('fl_seen'));
   const [monthlySalary, setMonthlySalary] = useState(0);
   const [totalBalance, setTotalBalance] = useState(0);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   const totalSpent = categories.reduce((acc, cat) => acc + (cat.limit - cat.balance), 0);
 
@@ -149,30 +165,42 @@ function App() {
   };
 
   const handleMonthlyReset = async () => {
-    if (!window.confirm('Take a screenshot and reset all data for the new month?')) return;
-
-    // 1. Screenshot the full page
+    // 1. Screenshot immediately on button press
     const canvas = await html2canvas(document.body, { useCORS: true });
-    const link = document.createElement('a');
     const month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
-    link.download = `finance-ledger-${month}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    const fileName = `finance-ledger-${month}.png`;
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 'image/png');
 
-    // 2. Delete all transactions for this user's categories
+    // 2. Show custom modal asking to clear data
+    setShowResetModal(true);
+  };
+
+  const confirmReset = async () => {
+    setShowResetModal(false);
+
+    // Delete all transactions for this user's categories
     const categoryIds = categories.map(c => c.id);
     if (categoryIds.length > 0) {
       await supabase.from('transactions').delete().in('category_id', categoryIds);
     }
 
-    // 3. Reset each category balance back to its limit
+    // Reset each category balance back to its limit
     await Promise.all(
       categories.map(c =>
         supabase.from('categories').update({ balance: c.limit }).eq('id', c.id)
       )
     );
 
-    // 4. Update local state
+    // Update local state
     setTransactions([]);
     setCategories(prev => prev.map(c => ({ ...c, balance: c.limit })));
     setTotalBalance(monthlySalary);
@@ -181,6 +209,7 @@ function App() {
   return (
     <div className="app">
       {showOnboarding && <Onboarding onDismiss={dismissOnboarding} />}
+      {showResetModal && <ResetConfirmModal onConfirm={confirmReset} onCancel={() => setShowResetModal(false)} />}
       <Header onReset={handleMonthlyReset} />
 
       <main className="app-main">

@@ -1,68 +1,104 @@
 import './App.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Onboarding from './components/Onboarding';
+import { defaultCategories } from './data/categories';
 import { Home, Smile, DollarSign, Plus } from 'lucide-react';
 import Header from './components/Header';
 import BalanceCard from './components/BalanceCard';
 import CategoryCard from './components/CategoryCard';
 import TransactionItem from './components/TransactionItem';
+import { supabase } from './supabaseClient';
 
-const INITIAL_CATEGORIES = [
-  { id: '1', name: 'Category 1', description: 'New category description', limit: 0, balance: 0, color: 'cat-green' },
-];
 
-const INITIAL_TRANSACTIONS = [
-  {
-    id: 't1', category: 'Needs', description: 'Grocery Store',
-    amount: -42.50, time: '10:45 AM', date: 'Today',
-    icon: <Home size={16} />, iconBg: 'icon-bg-blue', iconColor: 'icon-text-blue'
-  },
-  {
-    id: 't2', category: 'Wants', description: 'Coffee House',
-    amount: -5.20, time: '08:12 AM', date: 'Today',
-    icon: <Smile size={16} />, iconBg: 'icon-bg-orange', iconColor: 'icon-text-orange'
-  },
-  {
-    id: 't3', category: 'Savings', description: 'Investment Transfer',
-    amount: -500.00, time: '04:30 PM', date: 'Yesterday',
-    icon: <DollarSign size={16} />, iconBg: 'icon-bg-emerald', iconColor: 'icon-text-emerald'
-  },
-];
+
+const USER_ID = 1;
+
+function getTransactionDisplay(categoryName) {
+  if (categoryName === 'Needs') return { icon: <Home size={16} />, iconBg: 'icon-bg-blue', iconColor: 'icon-text-blue' };
+  if (categoryName === 'Wants') return { icon: <Smile size={16} />, iconBg: 'icon-bg-orange', iconColor: 'icon-text-orange' };
+  return { icon: <DollarSign size={16} />, iconBg: 'icon-bg-emerald', iconColor: 'icon-text-emerald' };
+}
+
+function getRelativeDate(createdAt) {
+  const txDate = new Date(createdAt);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (txDate.toDateString() === today.toDateString()) return 'Today';
+  if (txDate.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return txDate.toLocaleDateString();
+}
 
 function App() {
-  const [categories, setCategories] = useState(INITIAL_CATEGORIES);
+  const [categories, setCategories] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('fl_seen'));
+  const [monthlySalary, setMonthlySalary] = useState(0);
+  const [totalBalance, setTotalBalance] = useState(0);
+
+  const totalSpent = categories.reduce((acc, cat) => acc + (cat.limit - cat.balance), 0);
+
+  useEffect(() => {
+    async function loadData() {
+      const [{ data: user }, { data: cats }, { data: txs }] = await Promise.all([
+        supabase.from('users').select('salary').eq('id', USER_ID).maybeSingle(),
+        supabase.from('categories').select('*').eq('user_id', USER_ID).order('created_at'),
+        supabase.from('transactions').select('*, categories(name)').order('created_at', { ascending: false }),
+      ]);
+
+      console.log("user",user);
+      console.log("cats", cats);
+      console.log("txs", txs);
+      
+      if (cats && cats.length > 0) {
+        setCategories(cats.map(c => ({ ...c, color: 'cat-green' })));
+      } else {
+        const seed = { user_id: USER_ID, name: defaultCategories[0].name, description: defaultCategories[0].description, limit: 0, balance: 0 };
+        const { data: inserted } = await supabase.from('categories').insert(seed).select().single();
+        if (inserted) setCategories([{ ...inserted, color: 'cat-green' }]);
+      }
+      if (user) {
+        setMonthlySalary(user.salary);
+        const spent = (cats ?? []).reduce((acc, c) => acc + (c.limit - c.balance), 0);
+        setTotalBalance(user.salary - spent);
+      }
+      if (txs) {
+        setTransactions(txs.map(tx => ({
+          ...tx,
+          category: tx.categories?.name ?? '',
+          time: new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          date: getRelativeDate(tx.created_at),
+          ...getTransactionDisplay(tx.categories?.name ?? ''),
+        })));
+      }
+    }
+    loadData();
+  }, []);
 
   const dismissOnboarding = () => {
     localStorage.setItem('fl_seen', '1');
     setShowOnboarding(false);
   };
 
-  const totalSpent = categories.reduce((acc, cat) => acc + (cat.limit - cat.balance), 0);
-  const [monthlySalary, setMonthlySalary] = useState(0);
-  const [totalBalance, setTotalBalance] = useState(0);
-
-  const handleSalaryChange = (newSalary) => {
+  const handleSalaryChange = async (newSalary) => {
     setMonthlySalary(newSalary);
-    if (totalSpent === 0) {
-      setTotalBalance(newSalary);
-    }
+    if (totalSpent === 0) setTotalBalance(newSalary);
+    await supabase.from('users').update({ salary: newSalary }).eq('id', USER_ID);
   };
 
-  const createCategory = () => {
+  const createCategory = async () => {
     const newCategory = {
-      id: `cat-${Date.now()}`,
+      user_id: USER_ID,
       name: `Category ${categories.length + 1}`,
       description: 'New category description',
       limit: 0,
       balance: 0,
-      color: 'cat-green',
     };
-    setCategories(prev => [...prev, newCategory]);
+    const { data } = await supabase.from('categories').insert(newCategory).select().single();
+    if (data) setCategories(prev => [...prev, { ...data, color: 'cat-green' }]);
   };
 
-  const handleUpdateCategory = (categoryId, updates) => {
+  const handleUpdateCategory = async (categoryId, updates) => {
     setCategories(prev => prev.map(cat => {
       if (cat.id !== categoryId) return cat;
       const updated = { ...cat, ...updates };
@@ -73,27 +109,41 @@ function App() {
       }
       return updated;
     }));
+
+    const category = categories.find(c => c.id === categoryId);
+    if (!category) return;
+    const dbUpdates = { ...updates };
+    if (updates.limit !== undefined) {
+      const delta = updates.limit - category.limit;
+      dbUpdates.balance = Math.max(0, category.balance + delta);
+    }
+    await supabase.from('categories').update(dbUpdates).eq('id', categoryId);
   };
 
-  const handleSpend = (categoryId, amount) => {
+  const handleSpend = async (categoryId, amount) => {
+    const category = categories.find(c => c.id === categoryId);
+    const newBalance = category ? category.balance - amount : 0;
     setTotalBalance(prev => prev - amount);
     setCategories(prev => prev.map(cat =>
-      cat.id === categoryId ? { ...cat, balance: Math.max(0, cat.balance - amount) } : cat
+      cat.id === categoryId ? { ...cat, balance: newBalance } : cat
     ));
-    const category = categories.find(c => c.id === categoryId);
-    if (category) {
-      const newTransaction = {
-        id: `t-${Date.now()}`,
-        category: category.name,
-        description: 'Quick Spend',
-        amount: -amount,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+
+    const { data: tx } = await supabase
+      .from('transactions')
+      .insert({ category_id: categoryId, amount: -amount, description: 'Quick Spend' })
+      .select('*, categories(name)')
+      .single();
+
+    await supabase.from('categories').update({ balance: newBalance }).eq('id', categoryId);
+
+    if (tx) {
+      setTransactions(prev => [{
+        ...tx,
+        category: tx.categories?.name ?? (category?.name ?? ''),
+        time: new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         date: 'Today',
-        icon: category.name === 'Needs' ? <Home size={16} /> : category.name === 'Wants' ? <Smile size={16} /> : <DollarSign size={16} />,
-        iconBg: category.name === 'Needs' ? 'icon-bg-blue' : category.name === 'Wants' ? 'icon-bg-orange' : 'icon-bg-emerald',
-        iconColor: category.name === 'Needs' ? 'icon-text-blue' : category.name === 'Wants' ? 'icon-text-orange' : 'icon-text-emerald'
-      };
-      setTransactions(prev => [newTransaction, ...prev]);
+        ...getTransactionDisplay(tx.categories?.name ?? (category?.name ?? '')),
+      }, ...prev]);
     }
   };
 
@@ -124,9 +174,8 @@ function App() {
             {transactions.length === 0 && (
               <p className="no-transactions">No transactions yet</p>
             )}
-            {transactions.length !== 0 && ['Today', 'Yesterday'].map((date) => {
+            {transactions.length !== 0 && [...new Set(transactions.map(t => t.date))].map((date) => {
               const dateTransactions = transactions.filter(t => t.date === date);
-              // if (dateTransactions.length === 0) return null;
               return (
                 <div key={date}>
                   <p className="activity-date-label">{date}</p>

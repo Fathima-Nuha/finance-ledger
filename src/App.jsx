@@ -165,7 +165,7 @@ function App() {
   };
 
   const handleMonthlyReset = async () => {
-    // 1. Screenshot immediately on button press
+    // 1. Capture and directly download to Downloads folder
     const canvas = await html2canvas(document.body, { useCORS: true });
     const month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
     const fileName = `finance-ledger-${month}.png`;

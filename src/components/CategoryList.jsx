@@ -1,6 +1,6 @@
 import './CategoryList.css';
 import { useState } from 'react';
-import { Pencil } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 
 function EditableField({ value, onSave, className, type = 'text', prefix = '' }) {
   const [editing, setEditing] = useState(false);
@@ -36,7 +36,7 @@ function EditableField({ value, onSave, className, type = 'text', prefix = '' })
   );
 }
 
-function CategoryRow({ category, onSpend, onUpdate, salarySet }) {
+function CategoryRow({ category, onSpend, onUpdate, onDelete, salarySet }) {
   const [inputValue, setInputValue] = useState('');
 
   const handleSubmit = () => {
@@ -97,15 +97,18 @@ function CategoryRow({ category, onSpend, onUpdate, salarySet }) {
           Submit
         </button>
       </div>
+      <button className="category-delete-btn" onClick={() => onDelete(category.id)} title="Delete category">
+        <Trash2 size={13} />
+      </button>
     </div>
   );
 }
 
-function CategoryList({ categories = [], onSpend, onUpdate, salarySet }) {
+function CategoryList({ categories = [], onSpend, onUpdate, onDelete, salarySet }) {
   return (
     <>
       {categories.map((cat) => (
-        <CategoryRow key={cat.id} category={cat} onSpend={onSpend} onUpdate={onUpdate} salarySet={salarySet} />
+        <CategoryRow key={cat.id} category={cat} onSpend={onSpend} onUpdate={onUpdate} onDelete={onDelete} salarySet={salarySet} />
       ))}
     </>
   );

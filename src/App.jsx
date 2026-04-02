@@ -46,6 +46,23 @@ function NewMonthCountdownModal({ countdown }) {
   );
 }
 
+function BlockedDeleteModal({ categoryName, txCount, onClose }) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box">
+        <h3 className="modal-title" style={{ color: '#ef4444' }}>Cannot Delete Category</h3>
+        <p className="modal-body">
+          <strong>{categoryName}</strong> has <strong>{txCount} transaction{txCount !== 1 ? 's' : ''}</strong> linked to it.
+          Deleting it would erase that history.
+        </p>
+        <div className="modal-actions">
+          <button className="modal-btn modal-btn-ok" onClick={onClose}>Got it</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ResetConfirmModal({ onConfirm, onCancel }) {
   return (
     <div className="modal-overlay">
@@ -68,6 +85,7 @@ function App() {
   const [monthlySalary, setMonthlySalary] = useState(0);
   const [totalBalance, setTotalBalance] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [blockedDelete, setBlockedDelete] = useState(null); // { categoryName, txCount }
   const [showNewMonthAlert, setShowNewMonthAlert] = useState(false);
   const [newMonthCountdown, setNewMonthCountdown] = useState(10);
   const [screenshotError, setScreenshotError] = useState(false);
@@ -261,6 +279,22 @@ function App() {
     await supabase.from('categories').update(dbUpdates).eq('id', categoryId);
   };
 
+  const handleDeleteCategory = async (categoryId) => {
+    const txCount = transactions.filter(t => t.category_id === categoryId).length;
+    if (txCount > 0) {
+      const cat = categories.find(c => c.id === categoryId);
+      setBlockedDelete({ categoryName: cat?.name ?? 'This category', txCount });
+      return;
+    }
+    await supabase.from('categories').delete().eq('id', categoryId);
+    const deleted = categories.find(c => c.id === categoryId);
+    if (deleted) {
+      const spentInCat = deleted.limit - deleted.balance;
+      setTotalBalance(prev => prev + spentInCat);
+    }
+    setCategories(prev => prev.filter(c => c.id !== categoryId));
+  };
+
   const handleSpend = async (categoryId, amount) => {
     const category = categories.find(c => c.id === categoryId);
     const newBalance = category ? category.balance - amount : 0;
@@ -338,6 +372,7 @@ function App() {
     <div className="app">
       {showOnboarding && <Onboarding onDismiss={dismissOnboarding} />}
       {showNewMonthAlert && <NewMonthCountdownModal countdown={newMonthCountdown} />}
+      {blockedDelete && <BlockedDeleteModal categoryName={blockedDelete.categoryName} txCount={blockedDelete.txCount} onClose={() => setBlockedDelete(null)} />}
       {screenshotError && (
         <div className="modal-overlay">
           <div className="modal-box">
@@ -355,7 +390,7 @@ function App() {
       <main className="app-main">
         <BalanceCard balance={totalBalance} salary={monthlySalary} spent={totalSpent} onBalanceChange={setTotalBalance} onSalaryChange={handleSalaryChange} />
 
-        <CategoryCard categories={categories} onSpend={handleSpend} onUpdate={handleUpdateCategory} salarySet={monthlySalary > 0} />
+        <CategoryCard categories={categories} onSpend={handleSpend} onUpdate={handleUpdateCategory} onDelete={handleDeleteCategory} salarySet={monthlySalary > 0} />
 
         {/* Add Category Button */}
         <div className="add-category-wrapper">

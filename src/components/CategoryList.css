@@ -102,6 +102,25 @@
   cursor: not-allowed;
 }
 
+.category-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.3rem;
+  border-radius: 0.4rem;
+  color: #cbd5e1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.category-delete-btn:hover {
+  color: #ef4444;
+  background: #fff1f2;
+}
+
 /* Editable field */
 
 .editable-field {

@@ -1,10 +1,12 @@
 import './Header.css';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, LogOut } from 'lucide-react';
 
-function Header({ onReset }) {
+function Header({ onReset, onLogout }) {
   return (
     <header className="header">
-      <div className="header-spacer" />
+      <button className="header-logout-btn" onClick={onLogout} title="Switch user">
+        <LogOut size={16} />
+      </button>
       <div className="header-title-group">
         <h1 className="header-title">FinanceFlow</h1>
         <p className="header-subtitle">October 2023</p>

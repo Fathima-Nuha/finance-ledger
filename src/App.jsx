@@ -2,6 +2,7 @@ import './App.css';
 import { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import Onboarding from './components/Onboarding';
+import Login from './components/Login';
 import { defaultCategories } from './data/categories';
 import { Home, Smile, DollarSign, Plus } from 'lucide-react';
 import Header from './components/Header';
@@ -11,8 +12,6 @@ import TransactionItem from './components/TransactionItem';
 import { supabase } from './supabaseClient';
 
 
-
-const USER_ID = 1;
 
 function getTransactionDisplay(categoryName) {
   if (categoryName === 'Needs') return { icon: <Home size={16} />, iconBg: 'icon-bg-blue', iconColor: 'icon-text-blue' };
@@ -79,9 +78,13 @@ function ResetConfirmModal({ onConfirm, onCancel }) {
 }
 
 function App() {
+  const [userId, setUserId] = useState(() => {
+    const stored = localStorage.getItem('fl_user_id');
+    return stored ? parseInt(stored, 10) : null;
+  });
   const [categories, setCategories] = useState([]);
   const [transactions, setTransactions] = useState([]);
-  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('fl_seen'));
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [monthlySalary, setMonthlySalary] = useState(0);
   const [totalBalance, setTotalBalance] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -96,11 +99,31 @@ function App() {
   const totalSpent = categories.reduce((acc, cat) => acc + (cat.limit - cat.balance), 0);
 
   useEffect(() => {
+    if (!userId) return;
+    setShowOnboarding(!localStorage.getItem(`fl_seen_${userId}`));
+  }, [userId]);
+
+  const handleLogin = (id) => {
+    localStorage.setItem('fl_user_id', id);
+    setUserId(id);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('fl_user_id');
+    setUserId(null);
+    setCategories([]);
+    setTransactions([]);
+    setMonthlySalary(0);
+    setTotalBalance(0);
+  };
+
+  useEffect(() => {
+    if (!userId) return;
     async function loadData() {
       const [{ data: user }, { data: cats }, { data: txs }] = await Promise.all([
-        supabase.from('users').select('salary').eq('id', USER_ID).maybeSingle(),
-        supabase.from('categories').select('*').eq('user_id', USER_ID).order('created_at'),
-        supabase.from('transactions').select('*, categories(name)').order('created_at', { ascending: false }),
+        supabase.from('users').select('salary').eq('id', userId).maybeSingle(),
+        supabase.from('categories').select('*').eq('user_id', userId).order('created_at'),
+        supabase.from('transactions').select('*, categories!inner(name, user_id)').eq('categories.user_id', userId).order('created_at', { ascending: false }),
       ]);
 
       console.log("user",user);
@@ -140,7 +163,7 @@ function App() {
       if (cats && cats.length > 0) {
         setCategories(cats.map(c => ({ ...c, color: 'cat-green' })));
       } else {
-        const seed = { user_id: USER_ID, name: defaultCategories[0].name, description: defaultCategories[0].description, limit: 0, balance: 0 };
+        const seed = { user_id: userId, name: defaultCategories[0].name, description: defaultCategories[0].description, limit: 0, balance: 0 };
         const { data: inserted } = await supabase.from('categories').insert(seed).select().single();
         if (inserted) setCategories([{ ...inserted, color: 'cat-green' }]);
       }
@@ -160,7 +183,7 @@ function App() {
       }
     }
     loadData();
-  }, []);
+  }, [userId]);
 
   // New-month countdown: tick every second, execute clear at 0
   useEffect(() => {
@@ -226,7 +249,7 @@ function App() {
     const isTestDay = today.getDate() === 1 && (today.getMonth() + 1) === 4;
     const isTestTime = today.getHours() === 17 && today.getMinutes() >= 30;
     const currentMonth = `${today.getFullYear()}-${today.getMonth() + 1}`;
-    const lastReset = localStorage.getItem('fl_last_auto_reset');
+    const lastReset = localStorage.getItem(`fl_last_auto_reset_${userId}`);
     if (isTestDay && isTestTime && lastReset !== currentMonth) {
       autoResetFired.current = true;
       handleMonthlyReset();
@@ -235,19 +258,19 @@ function App() {
   }, [categories]);
 
   const dismissOnboarding = () => {
-    localStorage.setItem('fl_seen', '1');
+    localStorage.setItem(`fl_seen_${userId}`, '1');
     setShowOnboarding(false);
   };
 
   const handleSalaryChange = async (newSalary) => {
     setMonthlySalary(newSalary);
     if (totalSpent === 0) setTotalBalance(newSalary);
-    await supabase.from('users').update({ salary: newSalary }).eq('id', USER_ID);
+    await supabase.from('users').update({ salary: newSalary }).eq('id', userId);
   };
 
   const createCategory = async () => {
     const newCategory = {
-      user_id: USER_ID,
+      user_id: userId,
       name: `Category ${categories.length + 1}`,
       description: 'New category description',
       limit: 0,
@@ -347,7 +370,7 @@ function App() {
 
     // Save this month so auto-reset doesn't fire again
     const today = new Date();
-    localStorage.setItem('fl_last_auto_reset', `${today.getFullYear()}-${today.getMonth() + 1}`);
+    localStorage.setItem(`fl_last_auto_reset_${userId}`, `${today.getFullYear()}-${today.getMonth() + 1}`);
 
     // Delete all transactions for this user's categories
     const categoryIds = categories.map(c => c.id);
@@ -368,6 +391,8 @@ function App() {
     setTotalBalance(monthlySalary);
   };
 
+  if (!userId) return <Login onLogin={handleLogin} />;
+
   return (
     <div className="app">
       {showOnboarding && <Onboarding onDismiss={dismissOnboarding} />}
@@ -385,7 +410,7 @@ function App() {
         </div>
       )}
       {showResetModal && <ResetConfirmModal onConfirm={confirmReset} onCancel={() => setShowResetModal(false)} />}
-      <Header onReset={handleMonthlyReset} />
+      <Header onReset={handleMonthlyReset} onLogout={handleLogout} />
 
       <main className="app-main">
         <BalanceCard balance={totalBalance} salary={monthlySalary} spent={totalSpent} onBalanceChange={setTotalBalance} onSalaryChange={handleSalaryChange} />

@@ -53,6 +53,7 @@ function App() {
   const [totalBalance, setTotalBalance] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
   const autoResetFired = useRef(false);
+  const triggerTime = useRef((() => { const t = new Date(); t.setMinutes(t.getMinutes() + 2); return t; })());
 
   const totalSpent = categories.reduce((acc, cat) => acc + (cat.limit - cat.balance), 0);
 
@@ -68,6 +69,32 @@ function App() {
       console.log("cats", cats);
       console.log("txs", txs);
       
+      // Auto-clear if any transaction belongs to a previous month
+      const now = new Date();
+      const hasPreviousMonthData = (txs ?? []).length > 0 && (txs ?? []).some(tx => {
+        const d = new Date(tx.created_at);
+        return d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth();
+      });
+
+      if (hasPreviousMonthData) {
+        const catIds = (cats ?? []).map(c => c.id);
+        if (catIds.length > 0) {
+          await supabase.from('transactions').delete().in('category_id', catIds);
+        }
+        await Promise.all(
+          (cats ?? []).map(c =>
+            supabase.from('categories').update({ balance: c.limit }).eq('id', c.id)
+          )
+        );
+        setTransactions([]);
+        setCategories((cats ?? []).map(c => ({ ...c, balance: c.limit, color: 'cat-green' })));
+        if (user) {
+          setMonthlySalary(user.salary);
+          setTotalBalance(user.salary);
+        }
+        return;
+      }
+
       if (cats && cats.length > 0) {
         setCategories(cats.map(c => ({ ...c, color: 'cat-green' })));
       } else {
@@ -93,16 +120,15 @@ function App() {
     loadData();
   }, []);
 
-  // Auto-reset: fires on the last day of every month at 23:59
+  // AUTO-RESET TEST: triggers today (April 1) at 17:22 — revert after testing
   useEffect(() => {
     if (autoResetFired.current || categories.length === 0) return;
     const today = new Date();
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const isLastDay = today.getDate() === lastDayOfMonth;
-    const isAfter2359 = today.getHours() === 23 && today.getMinutes() >= 59;
+    const isTestDay = today.getDate() === 1 && (today.getMonth() + 1) === 4;
+    const isTestTime = today.getHours() === 17 && today.getMinutes() >= 30;
     const currentMonth = `${today.getFullYear()}-${today.getMonth() + 1}`;
     const lastReset = localStorage.getItem('fl_last_auto_reset');
-    if (isLastDay && isAfter2359 && lastReset !== currentMonth) {
+    if (isTestDay && isTestTime && lastReset !== currentMonth) {
       autoResetFired.current = true;
       handleMonthlyReset();
     }

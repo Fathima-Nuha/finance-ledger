@@ -395,7 +395,8 @@ function App() {
         {/* Add Category Button */}
         <div className="add-category-wrapper">
           <button className="add-category-btn" onClick={createCategory}>
-            <Plus size={28} strokeWidth={3} />
+            <Plus size={16} strokeWidth={3} />
+            Add Category
           </button>
         </div>
 

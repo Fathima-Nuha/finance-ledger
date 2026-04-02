@@ -30,6 +30,22 @@ function getRelativeDate(createdAt) {
   return txDate.toLocaleDateString();
 }
 
+function NewMonthCountdownModal({ countdown }) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box new-month-alert-box">
+        <h3 className="modal-title new-month-alert-title">It's a New Month!</h3>
+        <p className="modal-body">
+          Your previous month's data is being saved to your files and will be cleared automatically.
+        </p>
+        <div className="countdown-ring">
+          <span className="countdown-number">{countdown}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ResetConfirmModal({ onConfirm, onCancel }) {
   return (
     <div className="modal-overlay">
@@ -52,6 +68,9 @@ function App() {
   const [monthlySalary, setMonthlySalary] = useState(0);
   const [totalBalance, setTotalBalance] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showNewMonthAlert, setShowNewMonthAlert] = useState(false);
+  const [newMonthCountdown, setNewMonthCountdown] = useState(10);
+  const pendingClearRef = useRef(null);
   const autoResetFired = useRef(false);
   const triggerTime = useRef((() => { const t = new Date(); t.setMinutes(t.getMinutes() + 2); return t; })());
 
@@ -77,21 +96,25 @@ function App() {
       });
 
       if (hasPreviousMonthData) {
-        const catIds = (cats ?? []).map(c => c.id);
-        if (catIds.length > 0) {
-          await supabase.from('transactions').delete().in('category_id', catIds);
-        }
-        await Promise.all(
-          (cats ?? []).map(c =>
-            supabase.from('categories').update({ balance: c.limit }).eq('id', c.id)
-          )
-        );
-        setTransactions([]);
-        setCategories((cats ?? []).map(c => ({ ...c, balance: c.limit, color: 'cat-green' })));
+        // Load old data into state so user can see it during the countdown
+        setCategories((cats ?? []).map(c => ({ ...c, color: 'cat-green' })));
         if (user) {
           setMonthlySalary(user.salary);
-          setTotalBalance(user.salary);
+          const spent = (cats ?? []).reduce((acc, c) => acc + (c.limit - c.balance), 0);
+          setTotalBalance(user.salary - spent);
         }
+        if (txs) {
+          setTransactions(txs.map(tx => ({
+            ...tx,
+            category: tx.categories?.name ?? '',
+            time: new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            date: getRelativeDate(tx.created_at),
+            ...getTransactionDisplay(tx.categories?.name ?? ''),
+          })));
+        }
+        pendingClearRef.current = { cats: cats ?? [], user };
+        setNewMonthCountdown(10);
+        setShowNewMonthAlert(true);
         return;
       }
 
@@ -119,6 +142,49 @@ function App() {
     }
     loadData();
   }, []);
+
+  // New-month countdown: tick every second, execute clear at 0
+  useEffect(() => {
+    if (!showNewMonthAlert) return;
+    if (newMonthCountdown === 0) {
+      const { cats, user } = pendingClearRef.current ?? { cats: [], user: null };
+      (async () => {
+        // Screenshot and download
+        const canvas = await html2canvas(document.body, { useCORS: true });
+        const month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `finance-ledger-${month}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 'image/png');
+        // Clear DB
+        const catIds = cats.map(c => c.id);
+        if (catIds.length > 0) {
+          await supabase.from('transactions').delete().in('category_id', catIds);
+        }
+        await Promise.all(
+          cats.map(c => supabase.from('categories').update({ balance: c.limit }).eq('id', c.id))
+        );
+        // Reset state
+        setTransactions([]);
+        setCategories(cats.map(c => ({ ...c, balance: c.limit, color: 'cat-green' })));
+        if (user) {
+          setMonthlySalary(user.salary);
+          setTotalBalance(user.salary);
+        }
+        setShowNewMonthAlert(false);
+      })();
+      return;
+    }
+    const timer = setTimeout(() => setNewMonthCountdown(prev => prev - 1), 1000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNewMonthAlert, newMonthCountdown]);
 
   // AUTO-RESET TEST: triggers today (April 1) at 17:22 — revert after testing
   useEffect(() => {
@@ -256,6 +322,7 @@ function App() {
   return (
     <div className="app">
       {showOnboarding && <Onboarding onDismiss={dismissOnboarding} />}
+      {showNewMonthAlert && <NewMonthCountdownModal countdown={newMonthCountdown} />}
       {showResetModal && <ResetConfirmModal onConfirm={confirmReset} onCancel={() => setShowResetModal(false)} />}
       <Header onReset={handleMonthlyReset} />
 

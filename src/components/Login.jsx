@@ -20,7 +20,7 @@ function Login({ onLogin }) {
     const { data: existing, error: fetchErr } = await supabase
       .from('users')
       .select('id')
-      .eq('phone', cleaned)
+      .eq('phone_no', cleaned)
       .maybeSingle();
 
     if (fetchErr) {
@@ -35,7 +35,7 @@ function Login({ onLogin }) {
       // First time — create user row
       const { data: created, error: insertErr } = await supabase
         .from('users')
-        .insert({ phone: cleaned, salary: 0 })
+        .insert({ phone_no: cleaned, salary: 0 })
         .select('id')
         .single();
 

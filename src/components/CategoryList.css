@@ -1,5 +1,16 @@
 /* CategoryList.css */
 
+.category-row-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.category-row-wrapper .category-row {
+  flex: 1;
+  min-width: 0;
+}
+
 .category-row {
   background: white;
   padding: 1rem;

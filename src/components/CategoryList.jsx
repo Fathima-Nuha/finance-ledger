@@ -48,54 +48,56 @@ function CategoryRow({ category, onSpend, onUpdate, onDelete, salarySet }) {
   };
 
   return (
-    <div className="category-row">
-      <div className="category-name-group">
-        <EditableField
-          value={category.name}
-          onSave={v => onUpdate(category.id, { name: v })}
-          className="editable-name"
-        />
-        <EditableField
-          value={category.description}
-          onSave={v => onUpdate(category.id, { description: v })}
-          className="editable-description"
-        />
-      </div>
-      <div className="category-stat">
-        <p className="category-stat-label">Limit</p>
-        <EditableField
-          value={category.limit}
-          onSave={v => { const n = parseFloat(v); if (!isNaN(n)) onUpdate(category.id, { limit: n }); }}
-          className="editable-limit"
-          type="number"
-          prefix="$"
-        />
-      </div>
-      <div className="category-stat">
-        <p className="category-stat-label">Bal</p>
-        <EditableField
-          value={category.balance}
-          onSave={v => { const n = parseFloat(v); if (!isNaN(n)) onUpdate(category.id, { balance: n }); }}
-          className={`editable-balance ${category.color}`}
-          type="number"
-          prefix="$"
-        />
-      </div>
-      <div className="category-spend-group">
-        <div className="spend-input-wrapper">
-          <span className="spend-currency-prefix">$</span>
-          <input
-            type="number"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={salarySet ? '0.00' : 'Set salary first'}
-            className="spend-input"
-            disabled={!salarySet}
+    <div className="category-row-wrapper">
+      <div className="category-row">
+        <div className="category-name-group">
+          <EditableField
+            value={category.name}
+            onSave={v => onUpdate(category.id, { name: v })}
+            className="editable-name"
+          />
+          <EditableField
+            value={category.description}
+            onSave={v => onUpdate(category.id, { description: v })}
+            className="editable-description"
           />
         </div>
-        <button onClick={handleSubmit} className="spend-submit-btn" disabled={!salarySet} title={salarySet ? '' : 'Set your salary first'}>
-          Submit
-        </button>
+        <div className="category-stat">
+          <p className="category-stat-label">Limit</p>
+          <EditableField
+            value={category.limit}
+            onSave={v => { const n = parseFloat(v); if (!isNaN(n)) onUpdate(category.id, { limit: n }); }}
+            className="editable-limit"
+            type="number"
+            prefix="$"
+          />
+        </div>
+        <div className="category-stat">
+          <p className="category-stat-label">Bal</p>
+          <EditableField
+            value={category.balance}
+            onSave={v => { const n = parseFloat(v); if (!isNaN(n)) onUpdate(category.id, { balance: n }); }}
+            className={`editable-balance ${category.color}`}
+            type="number"
+            prefix="$"
+          />
+        </div>
+        <div className="category-spend-group">
+          <div className="spend-input-wrapper">
+            <span className="spend-currency-prefix">$</span>
+            <input
+              type="number"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={salarySet ? '0.00' : 'Set salary first'}
+              className="spend-input"
+              disabled={!salarySet}
+            />
+          </div>
+          <button onClick={handleSubmit} className="spend-submit-btn" disabled={!salarySet} title={salarySet ? '' : 'Set your salary first'}>
+            Submit
+          </button>
+        </div>
       </div>
       <button className="category-delete-btn" onClick={() => onDelete(category.id)} title="Delete category">
         <Trash2 size={13} />

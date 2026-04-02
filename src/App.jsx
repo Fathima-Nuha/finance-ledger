@@ -70,6 +70,7 @@ function App() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [showNewMonthAlert, setShowNewMonthAlert] = useState(false);
   const [newMonthCountdown, setNewMonthCountdown] = useState(10);
+  const [screenshotError, setScreenshotError] = useState(false);
   const pendingClearRef = useRef(null);
   const autoResetFired = useRef(false);
   const triggerTime = useRef((() => { const t = new Date(); t.setMinutes(t.getMinutes() + 2); return t; })());
@@ -149,20 +150,34 @@ function App() {
     if (newMonthCountdown === 0) {
       const { cats, user } = pendingClearRef.current ?? { cats: [], user: null };
       (async () => {
-        // Screenshot and download
-        const canvas = await html2canvas(document.body, { useCORS: true });
-        const month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
-        canvas.toBlob((blob) => {
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `finance-ledger-${month}.png`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-        }, 'image/png');
-        // Clear DB
+        // Screenshot — must succeed before any data is touched
+        let downloadTriggered = false;
+        try {
+          const canvas = await html2canvas(document.body, { useCORS: true });
+          const month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+          await new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => {
+              if (!blob) { reject(new Error('Blob creation failed')); return; }
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `finance-ledger-${month}.png`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+              resolve();
+            }, 'image/png');
+          });
+          downloadTriggered = true;
+        } catch {
+          // Screenshot failed — abort clear, show error
+          setScreenshotError(true);
+          setShowNewMonthAlert(false);
+          return;
+        }
+        if (!downloadTriggered) return;
+        // Clear DB only after download is confirmed triggered
         const catIds = cats.map(c => c.id);
         if (catIds.length > 0) {
           await supabase.from('transactions').delete().in('category_id', catIds);
@@ -323,6 +338,17 @@ function App() {
     <div className="app">
       {showOnboarding && <Onboarding onDismiss={dismissOnboarding} />}
       {showNewMonthAlert && <NewMonthCountdownModal countdown={newMonthCountdown} />}
+      {screenshotError && (
+        <div className="modal-overlay">
+          <div className="modal-box">
+            <h3 className="modal-title" style={{ color: '#ef4444' }}>Screenshot Failed</h3>
+            <p className="modal-body">Your data could not be saved as an image. Your previous month's data has <strong>not</strong> been cleared. Please take a manual screenshot before resetting.</p>
+            <div className="modal-actions">
+              <button className="modal-btn modal-btn-ok" onClick={() => setScreenshotError(false)}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showResetModal && <ResetConfirmModal onConfirm={confirmReset} onCancel={() => setShowResetModal(false)} />}
       <Header onReset={handleMonthlyReset} />
 
